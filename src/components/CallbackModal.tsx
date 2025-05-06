@@ -1,28 +1,88 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 
+const SERVER_URL = 'https://tajhotelsdemo.onrender.com';
+
 interface CallbackModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+interface FormData {
+  fullName: string;
+  phoneNumber: string;
+  carModel: string;
+}
+
+interface FormErrors {
+  fullName?: string;
+  phoneNumber?: string;
+  carModel?: string;
+}
+
+const carModelOptions = [
+  'TUCSON',
+  'EXTER',
+  'CRETA',
+  'VERNA',
+  'ALCAZAR',
+  'i20',
+  'AURA',
+];
+
 const CallbackModal: React.FC<CallbackModalProps> = ({ isOpen, onClose }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     fullName: '',
     phoneNumber: '',
-    model: '',
+    carModel: '',
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     const sanitized = name === 'phoneNumber' ? value.replace(/\D/g, '') : value;
     setFormData((prev) => ({ ...prev, [name]: sanitized }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = () => {
+    const errs: FormErrors = {};
+    if (!formData.fullName.trim()) errs.fullName = 'Full name is required';
+    if (!/^\d{10}$/.test(formData.phoneNumber))
+      errs.phoneNumber = 'Enter a valid 10-digit number';
+    if (!formData.carModel.trim()) errs.carModel = 'Car model is required';
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log('Form submitted:', formData);
-    onClose();
+    if (!validateForm()) return;
+
+    const payload = {
+      ...formData,
+      phoneNumber: `+91${formData.phoneNumber}`,
+    };
+
+    try {
+      const response = await fetch(`${SERVER_URL}/outbound-call-tata-motors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw await response.json();
+
+      setSubmitted(true);
+      setFormData({ fullName: '', phoneNumber: '', carModel: '' });
+      setTimeout(() => {
+        setSubmitted(false);
+        onClose();
+      }, 4000);
+    } catch (err) {
+      console.error('Submission failed:', err);
+    }
   };
 
   if (!isOpen) return null;
@@ -49,6 +109,7 @@ const CallbackModal: React.FC<CallbackModalProps> = ({ isOpen, onClose }) => {
                 placeholder="Enter your full name"
                 className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm"
               />
+              {errors.fullName && <p className="text-red-500 text-xs mt-1">{errors.fullName}</p>}
             </div>
 
             {/* Phone Number */}
@@ -67,18 +128,26 @@ const CallbackModal: React.FC<CallbackModalProps> = ({ isOpen, onClose }) => {
                   className="flex-1 border border-gray-300 rounded-r-md px-4 py-2 text-sm"
                 />
               </div>
+              {errors.phoneNumber && <p className="text-red-500 text-xs mt-1">{errors.phoneNumber}</p>}
             </div>
 
-            {/* Model */}
+            {/* Car Model Dropdown */}
             <div>
               <label className="block text-sm font-medium mb-1">Preferred Model</label>
-              <input
-                name="model"
-                value={formData.model}
+              <select
+                name="carModel"
+                value={formData.carModel}
                 onChange={handleChange}
-                placeholder="Enter car model"
                 className="w-full border border-gray-300 rounded-md px-4 py-2 text-sm"
-              />
+              >
+                <option value="">Select a model</option>
+                {carModelOptions.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+              {errors.carModel && <p className="text-red-500 text-xs mt-1">{errors.carModel}</p>}
             </div>
 
             {/* Buttons */}
